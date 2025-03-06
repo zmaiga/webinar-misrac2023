@@ -15,10 +15,16 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel.
 jobs:
   run-cpptest-make:
+	name: Analyze project with C/C++test
+
+	# Specifies required permissions for upload-sarif action
     permissions:
       # required for all workflows
       security-events: write
-    name: Analyze project with C/C++test
+ 	# only required for workflows in private repositories
+      actions: read
+      pages: write
+      id-token: write
 
     # Specifies the type of runner that the job will run on.
     runs-on: self-hosted
@@ -26,6 +32,11 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job.
     steps:
 
+	- name: Set build id
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: echo "build_id=build-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_ENV
+	
     # Checks out your repository under $GITHUB_WORKSPACE, so that your job can access it.
     - name: Checkout code
       uses: actions/checkout@v4
@@ -36,19 +47,22 @@ jobs:
       run: cpptesttrace make clean all
 
     # Runs code analysis with C/C++test.
-    - name: Run C/C++test
+    - name: Run C/C++test SA
       # Use the 'run-cpptest-action' GitHub action.
-      uses: parasoft/run-cpptest-action@2.0.0
-      # Uncomment if you are using C/C++test 2020.2 to generate a SARIF report:
+      uses: parasoft/run-cpptest-action@2.0.2
+      # Optional parameters for 'run-cpptest-action'.
       with:
         testConfig: 'MISRA C 2023 (MISRA C 2012) CI.properties'
-      #   reportFormat: xml,html,custom
-      #   additionalParams: '-property report.custom.extension=sarif -property report.custom.xsl.file=${PARASOFT_SARIF_XSL}'
+										  
+	  # Uncomment if you are using C/C++test 2020.2 to generate a SARIF report:
+      #reportFormat: xml,html,custom
+      #additionalParams: '-property report.custom.extension=sarif -property report.custom.xsl.file=${PARASOFT_SARIF_XSL}'
+      additionalParams: -publish -exclude "**/googletest/**" -exclude "**/tests/**" -exclude "**/googlemock/**"
 
     # Uploads analysis results in the SARIF format, so that they are displayed as GitHub code scanning alerts.
     - name: Upload results (SARIF)
       if: always()
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: reports/report.sarif
     
